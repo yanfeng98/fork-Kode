@@ -322,18 +322,11 @@ Kode is built with modern tools and requires [Bun](https://bun.sh) for developme
 ```bash
 # macOS/Linux
 curl -fsSL https://bun.sh/install | bash
-
-# Windows
-powershell -c "irm bun.sh/install.ps1 | iex"
 ```
 
 ### Setup Development Environment
 
 ```bash
-# Clone the repository
-git clone https://github.com/shareAI-lab/kode.git
-cd kode
-
 # Install dependencies
 bun install
 
@@ -356,23 +349,3 @@ bun test
 # Test the CLI
 ./cli.js --help
 ```
-
-## Contributing
-
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
-
-## License
-
-Apache 2.0 License - see [LICENSE](LICENSE) for details.
-
-## Thanks
-
-- Some code from @dnakov's anonkode
-- Some UI learned from gemini-cli  
-- Some system design learned from claude code
-
-## Support
-
-- 📚 [Documentation](docs/)
-- 🐛 [Report Issues](https://github.com/shareAI-lab/kode/issues)
-- 💬 [Discussions](https://github.com/shareAI-lab/kode/discussions)

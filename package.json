@@ -34,12 +34,7 @@
     "clean": "rm -rf cli.js",
     "prepublishOnly": "node scripts/build.mjs && node scripts/prepublish-check.js",
     "postinstall": "node scripts/postinstall.js || true",
-    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json}\"",
-    "lint": "eslint . --ext .ts,.tsx,.js --max-warnings 0",
-    "lint:fix": "eslint . --ext .ts,.tsx,.js --fix",
     "test": "bun test",
-    "typecheck": "tsc --noEmit",
     "prepare": "",
     "publish:dev": "node scripts/publish-dev.js",
     "publish:release": "node scripts/publish-release.js"
