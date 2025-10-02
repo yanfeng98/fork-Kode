@@ -1,27 +1,5 @@
 # Kode - AI Coding
-<img width="991" height="479" alt="image" src="https://github.com/user-attachments/assets/c1751e92-94dc-4e4a-9558-8cd2d058c1a1" />  <br> 
-[![npm version](https://badge.fury.io/js/@shareai-lab%2Fkode.svg)](https://www.npmjs.com/package/@shareai-lab/kode)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![AGENTS.md](https://img.shields.io/badge/AGENTS.md-Compatible-brightgreen)](https://agents.md)
-
-[中文文档](README.zh-CN.md) | [Contributing](CONTRIBUTING.md) | [Documentation](docs/)
-
-## 🎉 Big Announcement: We're Now Apache 2.0 Licensed!
-
-**Great news for the developer community!** In our commitment to democratizing AI agent technology and fostering a vibrant ecosystem of innovation, we're thrilled to announce that Kode has transitioned from AGPLv3 to the **Apache 2.0 license**.
-
-### What This Means for You:
-- ✅ **Complete Freedom**: Use Kode in any project - personal, commercial, or enterprise
-- ✅ **Build Without Barriers**: Create proprietary solutions without open-sourcing requirements
-- ✅ **Simple Attribution**: Just maintain copyright notices and license info
-- ✅ **Join a Movement**: Be part of accelerating the world's transition to AI-powered development
-
-This change reflects our belief that the future of software development is collaborative, open, and augmented by AI. By removing licensing barriers, we're empowering developers worldwide to build the next generation of AI-assisted tools and workflows. Let's build the future together! 🚀
-
-## 📢 Update Log
-
-**2025-08-29**: We've added Windows support! All Windows users can now run Kode using Git Bash, Unix subsystems, or WSL (Windows Subsystem for Linux) on their computers.
-
+<img width="991" height="479" alt="image" src="https://github.com/user-attachments/assets/c1751e92-94dc-4e4a-9558-8cd2d058c1a1" />  <br>
 
 ## 🤝 AGENTS.md Standard Support
 
@@ -32,7 +10,6 @@ This change reflects our belief that the future of software development is colla
 - ✅ **AGENTS.md** - Native support for the OpenAI-initiated standard format
 - ✅ **CLAUDE.md** - Full backward compatibility with Claude Code `.claude` configurations  
 - ✅ **Subagent System** - Advanced agent delegation and task orchestration
-- ✅ **Cross-platform** - Works with 20+ AI models and providers
 
 Use `# Your documentation request` to generate and maintain your AGENTS.md file automatically, while preserving compatibility with existing `.claude` workflows.
 
@@ -41,25 +18,16 @@ Use `# Your documentation request` to generate and maintain your AGENTS.md file 
 Kode is a powerful AI assistant that lives in your terminal. It can understand your codebase, edit files, run commands, and handle entire workflows for you.
 
 > **⚠️ Security Notice**: Kode runs in YOLO mode by default (equivalent to Claude Code's `--dangerously-skip-permissions` flag), bypassing all permission checks for maximum productivity. YOLO mode is recommended only for trusted, secure environments when working on non-critical projects. If you're working with important files or using models of questionable capability, we strongly recommend using `kode --safe` to enable permission checks and manual approval for all operations.
-> 
-> **📊 Model Performance**: For optimal performance, we recommend using newer, more capable models designed for autonomous task completion. Avoid older Q&A-focused models like GPT-4o or Gemini 2.5 Pro, which are optimized for answering questions rather than sustained independent task execution. Choose models specifically trained for agentic workflows and extended reasoning capabilities.
 
 <img width="600" height="577" alt="image" src="https://github.com/user-attachments/assets/8b46a39d-1ab6-4669-9391-14ccc6c5234c" />
 
 ## Features
 
 ### Core Capabilities
-- 🤖 **AI-Powered Assistance** - Uses advanced AI models to understand and respond to your requests
-- 🔄 **Multi-Model Collaboration** - Flexibly switch and combine multiple AI models to leverage their unique strengths
 - 🦜 **Expert Model Consultation** - Use `@ask-model-name` to consult specific AI models for specialized analysis
 - 👤 **Intelligent Agent System** - Use `@run-agent-name` to delegate tasks to specialized subagents
-- 📝 **Code Editing** - Directly edit files with intelligent suggestions and improvements
-- 🔍 **Codebase Understanding** - Analyzes your project structure and code relationships
-- 🚀 **Command Execution** - Run shell commands and see results in real-time
-- 🛠️ **Workflow Automation** - Handle complex development tasks with simple prompts
 
 ### 🎯 Advanced Intelligent Completion System
-Our state-of-the-art completion system provides unparalleled coding assistance:
 
 #### Smart Fuzzy Matching
 - **Hyphen-Aware Matching** - Type `dao` to match `run-agent-dao-qi-harmony-designer`
@@ -95,18 +63,6 @@ After installation, you can use any of these commands:
 - `kode` - Primary command
 - `kwa` - Kode With Agent (alternative)
 - `kd` - Ultra-short alias
-
-### Windows Notes
-
-- Install Git for Windows to provide a Bash (Unix‑like) environment: https://git-scm.com/download/win
-  - Kode automatically prefers Git Bash/MSYS or WSL Bash when available.
-  - If neither is available, it will fall back to your default shell, but many features work best with Bash.
-- Use VS Code’s integrated terminal rather than legacy Command Prompt (cmd):
-  - Better font rendering and icon support.
-  - Fewer path and encoding quirks compared to cmd.
-  - Select “Git Bash” as the VS Code terminal shell when possible.
-- Optional: If you install globally via npm, avoid spaces in the global prefix path to prevent shim issues.
-  - Example: `npm config set prefix "C:\\npm"` and reinstall global packages.
 
 ## Usage
 
