@@ -188,3 +188,6 @@ pnpm-lock.yaml
 cli.mjs
 cli.mjs.map
 source-maps/
+
+test.md
+test.tsx

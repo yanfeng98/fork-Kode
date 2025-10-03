@@ -4,10 +4,8 @@ import { dirname, join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { initSentry } from '@services/sentry'
 import { PRODUCT_COMMAND, PRODUCT_NAME } from '@constants/product'
-initSentry() // Initialize Sentry as early as possible
+initSentry()
 
-// Ensure YOGA_WASM_PATH is set for Ink across run modes (wrapper/dev)
-// Resolve yoga.wasm relative to this file when missing using ESM-friendly APIs
 try {
   if (!process.env.YOGA_WASM_PATH) {
     const __filename = fileURLToPath(import.meta.url)
@@ -25,16 +23,12 @@ try {
   }
 } catch {}
 
-// XXX: Without this line (and the Object.keys, even though it seems like it does nothing!),
-// there is a bug in Bun only on Win32 that causes this import to be removed, even though
-// its use is solely because of its side-effects.
 import * as dontcare from '@anthropic-ai/sdk/shims/node'
 Object.keys(dontcare)
 
 import React from 'react'
 import { ReadStream } from 'tty'
 import { openSync } from 'fs'
-// ink and REPL are imported lazily to avoid top-level awaits during module init
 import type { RenderOptions } from 'ink'
 import { addToHistory } from '@history'
 import { getContext, setContext, removeContext } from '@context'
@@ -93,13 +87,13 @@ import { cursorShow } from 'ansi-escapes'
 import { getLatestVersion, assertMinVersion, getUpdateCommandSuggestions } from '@utils/autoUpdater'
 import { gt } from 'semver'
 import { CACHE_PATHS } from '@utils/log'
-// import { checkAndNotifyUpdate } from '@utils/autoUpdater'
 import { PersistentShell } from '@utils/PersistentShell'
 import { clearTerminal } from '@utils/terminal'
 import { showInvalidConfigDialog } from '@components/InvalidConfigDialog'
 import { ConfigParseError } from '@utils/errors'
 import { grantReadPermissionForOriginalDir } from '@utils/permissions/filesystem'
 import { MACRO } from '@constants/macros'
+
 export function completeOnboarding(): void {
   const config = getGlobalConfig()
   saveGlobalConfig({
