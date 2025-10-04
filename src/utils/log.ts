@@ -13,6 +13,8 @@ import type { LogOption, SerializedMessage } from '@kode-types/logs'
 import { MACRO } from '@constants/macros'
 import { PRODUCT_COMMAND } from '@constants/product'
 
+export const SESSION_ID = randomUUID()
+
 const IN_MEMORY_ERROR_LOG: Array<{ error: string; timestamp: string }> = []
 const MAX_IN_MEMORY_ERRORS = 100 // Limit to prevent memory issues
 
@@ -51,8 +53,6 @@ function safeWriteFile(path: string, data: string, encoding: BufferEncoding = 'u
     throw error
   }
 }
-
-export const SESSION_ID = randomUUID()
 
 const paths = envPaths(PRODUCT_COMMAND)
 

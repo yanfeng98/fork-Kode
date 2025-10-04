@@ -161,14 +161,6 @@ async function showSetupScreens(
   }
 }
 
-function logStartup(): void {
-  const config = getGlobalConfig()
-  saveGlobalConfig({
-    ...config,
-    numStartups: (config.numStartups ?? 0) + 1,
-  })
-}
-
 async function setup(cwd: string, safeMode?: boolean): Promise<void> {
   // Set both current and original working directory if --cwd was provided
   if (cwd !== process.cwd()) {
@@ -252,7 +244,6 @@ async function setup(cwd: string, safeMode?: boolean): Promise<void> {
 }
 
 async function main() {
-  // 初始化调试日志系统
   initDebugLogger()
 
   // Validate configs are valid and enable configuration system

@@ -8,7 +8,11 @@ import { PRODUCT_COMMAND } from '@constants/product'
 import { SESSION_ID } from './log'
 import type { Message } from '@kode-types/conversation'
 
-// 调试日志级别
+const isDebugMode = () =>
+  process.argv.includes('--debug') || process.argv.includes('--debug-verbose')
+const isDebugVerboseMode = () => process.argv.includes('--debug-verbose')
+const isVerboseMode = () => process.argv.includes('--verbose')
+
 export enum LogLevel {
   TRACE = 'TRACE',
   DEBUG = 'DEBUG',
@@ -18,24 +22,9 @@ export enum LogLevel {
   FLOW = 'FLOW',
   API = 'API',
   STATE = 'STATE',
-  REMINDER = 'REMINDER', // 新增：系统提醒事件
+  REMINDER = 'REMINDER',
 }
 
-// 调试模式检测
-const isDebugMode = () =>
-  process.argv.includes('--debug') || process.argv.includes('--debug-verbose')
-const isVerboseMode = () => process.argv.includes('--verbose')
-const isDebugVerboseMode = () => process.argv.includes('--debug-verbose')
-
-// 终端日志级别配置 - 显示关键信息
-const TERMINAL_LOG_LEVELS = new Set([
-  LogLevel.ERROR,
-  LogLevel.WARN,
-  LogLevel.INFO, // 添加 INFO 级别，显示关键系统状态
-  LogLevel.REMINDER, // 系统提醒事件，用户应该看到
-])
-
-// 在调试详细模式下显示更多日志级别
 const DEBUG_VERBOSE_TERMINAL_LOG_LEVELS = new Set([
   LogLevel.ERROR,
   LogLevel.WARN,
@@ -43,7 +32,14 @@ const DEBUG_VERBOSE_TERMINAL_LOG_LEVELS = new Set([
   LogLevel.API,
   LogLevel.STATE,
   LogLevel.INFO,
-  LogLevel.REMINDER, // 系统提醒在详细模式下也显示
+  LogLevel.REMINDER,
+])
+
+const TERMINAL_LOG_LEVELS = new Set([
+  LogLevel.ERROR,
+  LogLevel.WARN,
+  LogLevel.INFO,
+  LogLevel.REMINDER,
 ])
 
 // 用户友好的日志级别 - 简化的高级日志
@@ -57,11 +53,9 @@ const USER_FRIENDLY_LEVELS = new Set([
   'PERFORMANCE_SUMMARY',
 ])
 
-// 启动时间戳用于文件命名
 const STARTUP_TIMESTAMP = new Date().toISOString().replace(/[:.]/g, '-')
 const REQUEST_START_TIME = Date.now()
 
-// 路径配置 - 统一使用 ~/.kode 目录
 const KODE_DIR = join(homedir(), '.kode')
 function getProjectDir(cwd: string): string {
   return cwd.replace(/[^a-zA-Z0-9]/g, '-')
@@ -73,24 +67,6 @@ const DEBUG_PATHS = {
   flow: () => join(DEBUG_PATHS.base(), `${STARTUP_TIMESTAMP}-flow.log`),
   api: () => join(DEBUG_PATHS.base(), `${STARTUP_TIMESTAMP}-api.log`),
   state: () => join(DEBUG_PATHS.base(), `${STARTUP_TIMESTAMP}-state.log`),
-}
-
-// 确保调试目录存在
-function ensureDebugDir() {
-  const debugDir = DEBUG_PATHS.base()
-  if (!existsSync(debugDir)) {
-    mkdirSync(debugDir, { recursive: true })
-  }
-}
-
-// 日志条目接口
-interface LogEntry {
-  timestamp: string
-  level: LogLevel
-  phase: string
-  requestId?: string
-  data: any
-  elapsed?: number
 }
 
 // 当前请求上下文
@@ -119,9 +95,61 @@ class RequestContext {
 
 // 全局请求上下文管理
 const activeRequests = new Map<string, RequestContext>()
+
+function getDedupeKey(level: LogLevel, phase: string, data: any): string {
+  if (phase.startsWith('CONFIG_')) {
+    const file = data?.file || ''
+    return `${level}:${phase}:${file}`
+  }
+
+  return `${level}:${phase}`
+}
+
+const recentLogs = new Map<string, number>()
+const LOG_DEDUPE_WINDOW_MS = 5000 // 5秒内相同日志视为重复
+
+function shouldLogWithDedupe(
+  level: LogLevel,
+  phase: string,
+  data: any,
+): boolean {
+  const key = getDedupeKey(level, phase, data)
+  const now = Date.now()
+  const lastLogTime = recentLogs.get(key)
+
+  if (!lastLogTime || now - lastLogTime > LOG_DEDUPE_WINDOW_MS) {
+    recentLogs.set(key, now)
+
+    for (const [oldKey, oldTime] of recentLogs.entries()) {
+      if (now - oldTime > LOG_DEDUPE_WINDOW_MS) {
+        recentLogs.delete(oldKey)
+      }
+    }
+
+    return true
+  }
+
+  return false
+}
+
+interface LogEntry {
+  timestamp: string
+  level: LogLevel
+  phase: string
+  requestId?: string
+  data: any
+  elapsed?: number
+}
+
 let currentRequest: RequestContext | null = null
 
-// 核心日志记录函数
+function ensureDebugDir() {
+  const debugDir = DEBUG_PATHS.base()
+  if (!existsSync(debugDir)) {
+    mkdirSync(debugDir, { recursive: true })
+  }
+}
+
 function writeToFile(filePath: string, entry: LogEntry) {
   if (!isDebugMode()) return
 
@@ -145,51 +173,18 @@ function writeToFile(filePath: string, entry: LogEntry) {
   }
 }
 
-// 日志去重机制
-const recentLogs = new Map<string, number>()
-const LOG_DEDUPE_WINDOW_MS = 5000 // 5秒内相同日志视为重复
+function shouldShowInTerminal(level: LogLevel): boolean {
+  if (!isDebugMode()) return false
 
-// 生成日志去重键
-function getDedupeKey(level: LogLevel, phase: string, data: any): string {
-  // 对于配置相关的日志，使用文件路径和操作类型作为键
-  if (phase.startsWith('CONFIG_')) {
-    const file = data?.file || ''
-    return `${level}:${phase}:${file}`
+  if (isDebugVerboseMode()) {
+    return DEBUG_VERBOSE_TERMINAL_LOG_LEVELS.has(level)
   }
 
-  // 对于其他日志，使用阶段作为键
-  return `${level}:${phase}`
+  return TERMINAL_LOG_LEVELS.has(level)
 }
 
-// 检查是否应该记录日志（去重）
-function shouldLogWithDedupe(
-  level: LogLevel,
-  phase: string,
-  data: any,
-): boolean {
-  const key = getDedupeKey(level, phase, data)
-  const now = Date.now()
-  const lastLogTime = recentLogs.get(key)
-
-  // 如果是第一次记录，或者超过去重时间窗口，则允许记录
-  if (!lastLogTime || now - lastLogTime > LOG_DEDUPE_WINDOW_MS) {
-    recentLogs.set(key, now)
-
-    // 清理过期的日志记录
-    for (const [oldKey, oldTime] of recentLogs.entries()) {
-      if (now - oldTime > LOG_DEDUPE_WINDOW_MS) {
-        recentLogs.delete(oldKey)
-      }
-    }
-
-    return true
-  }
-
-  return false
-}
 function formatMessages(messages: any): string {
   if (Array.isArray(messages)) {
-    // 只显示最近 5 条消息
     const recentMessages = messages.slice(-5)
     return recentMessages
       .map((msg, index) => {
@@ -197,7 +192,6 @@ function formatMessages(messages: any): string {
         let content = ''
 
         if (typeof msg.content === 'string') {
-          // 每条消息最长 300 字符，超出省略
           content =
             msg.content.length > 300
               ? msg.content.substring(0, 300) + '...'
@@ -218,14 +212,13 @@ function formatMessages(messages: any): string {
     try {
       const parsed = JSON.parse(messages)
       if (Array.isArray(parsed)) {
-        return formatMessages(parsed) // 递归处理解析后的数组
+        return formatMessages(parsed)
       }
     } catch {
       // 如果解析失败，返回截断的字符串
     }
   }
 
-  // 对于非消息数组的长字符串，也进行截断
   if (typeof messages === 'string' && messages.length > 200) {
     return messages.substring(0, 200) + '...'
   }
@@ -233,22 +226,7 @@ function formatMessages(messages: any): string {
   return typeof messages === 'string' ? messages : JSON.stringify(messages)
 }
 
-// 判断是否应该在终端显示日志
-function shouldShowInTerminal(level: LogLevel): boolean {
-  if (!isDebugMode()) return false
-
-  // 在调试详细模式下显示更多日志级别
-  if (isDebugVerboseMode()) {
-    return DEBUG_VERBOSE_TERMINAL_LOG_LEVELS.has(level)
-  }
-
-  // 默认只显示错误和警告
-  return TERMINAL_LOG_LEVELS.has(level)
-}
-
-// 终端彩色输出
 function logToTerminal(entry: LogEntry) {
-  // 使用新的过滤逻辑
   if (!shouldShowInTerminal(entry.level)) return
 
   const { level, phase, data, requestId, elapsed } = entry
@@ -294,11 +272,9 @@ function logToTerminal(entry: LogEntry) {
   const reqId = requestId ? chalk.dim(`[${requestId}]`) : ''
   const elapsedStr = elapsed !== undefined ? chalk.dim(`+${elapsed}ms`) : ''
 
-  // 特殊处理一些数据格式
   let dataStr = ''
   if (typeof data === 'object' && data !== null) {
     if (data.messages) {
-      // 格式化消息数组
       const formattedMessages = formatMessages(data.messages)
       dataStr = JSON.stringify(
         {
@@ -320,7 +296,6 @@ function logToTerminal(entry: LogEntry) {
   )
 }
 
-// 主要调试日志函数
 export function debugLog(
   level: LogLevel,
   phase: string,
@@ -329,9 +304,8 @@ export function debugLog(
 ) {
   if (!isDebugMode()) return
 
-  // 检查是否应该记录（去重检查）
   if (!shouldLogWithDedupe(level, phase, data)) {
-    return // 跳过重复的日志
+    return
   }
 
   const entry: LogEntry = {
@@ -343,7 +317,6 @@ export function debugLog(
     elapsed: currentRequest ? Date.now() - currentRequest.startTime : undefined,
   }
 
-  // 写入对应的日志文件
   writeToFile(DEBUG_PATHS.detailed(), entry)
 
   switch (level) {
@@ -358,11 +331,9 @@ export function debugLog(
       break
   }
 
-  // 终端输出（也会被过滤）
   logToTerminal(entry)
 }
 
-// 便捷的日志函数
 export const debug = {
   flow: (phase: string, data: any, requestId?: string) =>
     debugLog(LogLevel.FLOW, phase, data, requestId),
@@ -893,7 +864,6 @@ export function logUserFriendly(type: string, data: any, requestId?: string) {
   console.log(`${color(`[${timestamp}]`)} ${icon} ${color(message)} ${reqId}`)
 }
 
-// 初始化日志系统
 export function initDebugLogger() {
   if (!isDebugMode()) return
 
