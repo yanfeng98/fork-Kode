@@ -361,6 +361,39 @@ export const debug = {
     debugLog(LogLevel.STATE, `UI_${phase}`, data, requestId),
 }
 
+export function initDebugLogger() {
+  if (!isDebugMode()) return
+
+  debug.info('DEBUG_LOGGER_INIT', {
+    startupTimestamp: STARTUP_TIMESTAMP,
+    sessionId: SESSION_ID,
+    debugPaths: {
+      detailed: DEBUG_PATHS.detailed(),
+      flow: DEBUG_PATHS.flow(),
+      api: DEBUG_PATHS.api(),
+      state: DEBUG_PATHS.state(),
+    },
+  })
+
+  const terminalLevels = isDebugVerboseMode()
+    ? Array.from(DEBUG_VERBOSE_TERMINAL_LOG_LEVELS).join(', ')
+    : Array.from(TERMINAL_LOG_LEVELS).join(', ')
+
+  console.log(
+    chalk.dim(`[DEBUG] Terminal output filtered to: ${terminalLevels}`),
+  )
+  console.log(
+    chalk.dim(`[DEBUG] Complete logs saved to: ${DEBUG_PATHS.base()}`),
+  )
+  if (!isDebugVerboseMode()) {
+    console.log(
+      chalk.dim(
+        `[DEBUG] Use --debug-verbose for detailed system logs (FLOW, API, STATE)`,
+      ),
+    )
+  }
+}
+
 // 请求生命周期管理
 export function startRequest(): RequestContext {
   const ctx = new RequestContext()
@@ -864,39 +897,6 @@ export function logUserFriendly(type: string, data: any, requestId?: string) {
   console.log(`${color(`[${timestamp}]`)} ${icon} ${color(message)} ${reqId}`)
 }
 
-export function initDebugLogger() {
-  if (!isDebugMode()) return
-
-  debug.info('DEBUG_LOGGER_INIT', {
-    startupTimestamp: STARTUP_TIMESTAMP,
-    sessionId: SESSION_ID,
-    debugPaths: {
-      detailed: DEBUG_PATHS.detailed(),
-      flow: DEBUG_PATHS.flow(),
-      api: DEBUG_PATHS.api(),
-      state: DEBUG_PATHS.state(),
-    },
-  })
-
-  // 显示终端输出过滤信息
-  const terminalLevels = isDebugVerboseMode()
-    ? Array.from(DEBUG_VERBOSE_TERMINAL_LOG_LEVELS).join(', ')
-    : Array.from(TERMINAL_LOG_LEVELS).join(', ')
-
-  console.log(
-    chalk.dim(`[DEBUG] Terminal output filtered to: ${terminalLevels}`),
-  )
-  console.log(
-    chalk.dim(`[DEBUG] Complete logs saved to: ${DEBUG_PATHS.base()}`),
-  )
-  if (!isDebugVerboseMode()) {
-    console.log(
-      chalk.dim(
-        `[DEBUG] Use --debug-verbose for detailed system logs (FLOW, API, STATE)`,
-      ),
-    )
-  }
-}
 
 // 新增：错误诊断和恢复建议系统
 interface ErrorDiagnosis {

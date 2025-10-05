@@ -243,59 +243,6 @@ async function setup(cwd: string, safeMode?: boolean): Promise<void> {
   // Users can still run the doctor command manually if desired.
 }
 
-async function main() {
-  initDebugLogger()
-
-  // Validate configs are valid and enable configuration system
-  try {
-    enableConfigs()
-    
-    // 🔧 Validate and auto-repair GPT-5 model profiles
-    try {
-      const repairResult = validateAndRepairAllGPT5Profiles()
-      if (repairResult.repaired > 0) {
-        console.log(`🔧 Auto-repaired ${repairResult.repaired} GPT-5 model configurations`)
-      }
-    } catch (repairError) {
-      // Don't block startup if GPT-5 validation fails
-      console.warn('⚠️ GPT-5 configuration validation failed:', repairError)
-    }
-  } catch (error: unknown) {
-    if (error instanceof ConfigParseError) {
-      // Show the invalid config dialog with the error object
-      await showInvalidConfigDialog({ error })
-      return // Exit after handling the config error
-    }
-  }
-
-  // Disabled background notifier to avoid mid-screen logs during REPL
-
-  let inputPrompt = ''
-  let renderContext: RenderOptions | undefined = {
-    exitOnCtrlC: false,
-  
-    onFlicker() {},
-  } as any
-
-  if (
-    !process.stdin.isTTY &&
-    !process.env.CI &&
-    // Input hijacking breaks MCP.
-    !process.argv.includes('mcp')
-  ) {
-    inputPrompt = await stdin()
-    if (process.platform !== 'win32') {
-      try {
-        const ttyFd = openSync('/dev/tty', 'r')
-        renderContext = { ...renderContext, stdin: new ReadStream(ttyFd) }
-      } catch (err) {
-        logError(`Could not open /dev/tty: ${err}`)
-      }
-    }
-  }
-  await parseArgs(inputPrompt, renderContext)
-}
-
 async function parseArgs(
   stdinContent: string,
   renderContext: RenderOptions | undefined,
@@ -1489,3 +1436,55 @@ function resetCursor() {
 }
 
 main()
+
+async function main() {
+  initDebugLogger()
+
+  try {
+    enableConfigs()
+    
+    // 🔧 Validate and auto-repair GPT-5 model profiles
+    try {
+      const repairResult = validateAndRepairAllGPT5Profiles()
+      if (repairResult.repaired > 0) {
+        console.log(`🔧 Auto-repaired ${repairResult.repaired} GPT-5 model configurations`)
+      }
+    } catch (repairError) {
+      // Don't block startup if GPT-5 validation fails
+      console.warn('⚠️ GPT-5 configuration validation failed:', repairError)
+    }
+  } catch (error: unknown) {
+    if (error instanceof ConfigParseError) {
+      // Show the invalid config dialog with the error object
+      await showInvalidConfigDialog({ error })
+      return // Exit after handling the config error
+    }
+  }
+
+  // Disabled background notifier to avoid mid-screen logs during REPL
+
+  let inputPrompt = ''
+  let renderContext: RenderOptions | undefined = {
+    exitOnCtrlC: false,
+  
+    onFlicker() {},
+  } as any
+
+  if (
+    !process.stdin.isTTY &&
+    !process.env.CI &&
+    // Input hijacking breaks MCP.
+    !process.argv.includes('mcp')
+  ) {
+    inputPrompt = await stdin()
+    if (process.platform !== 'win32') {
+      try {
+        const ttyFd = openSync('/dev/tty', 'r')
+        renderContext = { ...renderContext, stdin: new ReadStream(ttyFd) }
+      } catch (err) {
+        logError(`Could not open /dev/tty: ${err}`)
+      }
+    }
+  }
+  await parseArgs(inputPrompt, renderContext)
+}

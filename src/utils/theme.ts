@@ -1,5 +1,7 @@
 import { getGlobalConfig } from './config'
 
+export type ThemeNames = 'dark' | 'light' | 'light-daltonized' | 'dark-daltonized'
+
 export interface Theme {
   bashBorder: string
   kode: string
@@ -109,8 +111,6 @@ const darkDaltonizedTheme: Theme = {
     removedDimmed: '#3e2c2c',
   },
 }
-
-export type ThemeNames = 'dark' | 'light' | 'light-daltonized' | 'dark-daltonized'
 
 export function getTheme(overrideTheme?: ThemeNames): Theme {
   const config = getGlobalConfig()

@@ -12,17 +12,15 @@ import { debug as debugLogger } from './debugLogger'
 import { getSessionState, setSessionState } from './sessionState'
 
 export type McpStdioServerConfig = {
-  type?: 'stdio' // Optional for backwards compatibility
+  type?: 'stdio'
   command: string
   args: string[]
   env?: Record<string, string>
 }
-
 export type McpSSEServerConfig = {
   type: 'sse'
   url: string
 }
-
 export type McpServerConfig = McpStdioServerConfig | McpSSEServerConfig
 
 export type ProjectConfig = {
@@ -46,38 +44,11 @@ export type ProjectConfig = {
   hasCompletedProjectOnboarding?: boolean
 }
 
-const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
-  allowedTools: [],
-  context: {},
-  history: [],
-  dontCrawlDirectory: false,
-  enableArchitectTool: false,
-  mcpContextUris: [],
-  mcpServers: {},
-  approvedMcprcServers: [],
-  rejectedMcprcServers: [],
-  hasTrustDialogAccepted: false,
-}
-
-function defaultConfigForProject(projectPath: string): ProjectConfig {
-  const config = { ...DEFAULT_PROJECT_CONFIG }
-  if (projectPath === homedir()) {
-    config.dontCrawlDirectory = true
-  }
-  return config
-}
-
 export type AutoUpdaterStatus =
   | 'disabled'
   | 'enabled'
   | 'no_permissions'
   | 'not_configured'
-
-export function isAutoUpdaterStatus(value: string): value is AutoUpdaterStatus {
-  return ['disabled', 'enabled', 'no_permissions', 'not_configured'].includes(
-    value as AutoUpdaterStatus,
-  )
-}
 
 export type NotificationChannel =
   | 'iterm2'
@@ -106,38 +77,34 @@ export type ProviderType =
   | 'custom'
   | 'custom-openai'
 
-// New model system types
-export type ModelProfile = {
-  name: string // User-friendly name
-  provider: ProviderType // Provider type
-  modelName: string // Primary key - actual model identifier
-  baseURL?: string // Custom endpoint
-  apiKey: string
-  maxTokens: number // Output token limit (for GPT-5, this maps to max_completion_tokens)
-  contextLength: number // Context window size
-  reasoningEffort?: 'low' | 'medium' | 'high' | 'minimal' | 'medium'
-  isActive: boolean // Whether profile is enabled
-  createdAt: number // Creation timestamp
-  lastUsed?: number // Last usage timestamp
-  // 🔥 GPT-5 specific metadata
-  isGPT5?: boolean // Auto-detected GPT-5 model flag
-  validationStatus?: 'valid' | 'needs_repair' | 'auto_repaired' // Configuration status
-  lastValidation?: number // Last validation timestamp
-}
-
-export type ModelPointerType = 'main' | 'task' | 'reasoning' | 'quick'
-
-export type ModelPointers = {
-  main: string // Main dialog model ID
-  task: string // Task tool model ID
-  reasoning: string // Reasoning model ID
-  quick: string // Quick model ID
-}
-
 export type AccountInfo = {
   accountUuid: string
   emailAddress: string
   organizationUuid?: string
+}
+
+export type ModelProfile = {
+  name: string
+  provider: ProviderType
+  modelName: string
+  baseURL?: string
+  apiKey: string
+  maxTokens: number
+  contextLength: number
+  reasoningEffort?: 'low' | 'medium' | 'high' | 'minimal' | 'medium'
+  isActive: boolean
+  createdAt: number
+  lastUsed?: number
+  isGPT5?: boolean
+  validationStatus?: 'valid' | 'needs_repair' | 'auto_repaired'
+  lastValidation?: number
+}
+
+export type ModelPointers = {
+  main: string
+  task: string
+  reasoning: string
+  quick: string
 }
 
 export type GlobalConfig = {
@@ -147,9 +114,7 @@ export type GlobalConfig = {
   userID?: string
   theme: ThemeNames
   hasCompletedOnboarding?: boolean
-  // Tracks the last version that reset onboarding, used with MIN_VERSION_REQUIRING_ONBOARDING_RESET
   lastOnboardingVersion?: string
-  // Tracks the last version for which release notes were seen, used for managing release notes
   lastReleaseNotesSeen?: string
   mcpServers?: Record<string, McpServerConfig>
   preferredNotifChannel: NotificationChannel
@@ -162,16 +127,14 @@ export type GlobalConfig = {
   maxTokens?: number
   hasAcknowledgedCostThreshold?: boolean
   oauthAccount?: AccountInfo
-  iterm2KeyBindingInstalled?: boolean // Legacy - keeping for backward compatibility
+  iterm2KeyBindingInstalled?: boolean
   shiftEnterKeyBindingInstalled?: boolean
   proxy?: string
   stream?: boolean
 
-  // New model system
-  modelProfiles?: ModelProfile[] // Model configuration list
-  modelPointers?: ModelPointers // Model pointer system
-  defaultModelName?: string // Default model
-  // Update notifications
+  modelProfiles?: ModelProfile[]
+  modelPointers?: ModelPointers
+  defaultModelName?: string
   lastDismissedUpdateVersion?: string
 }
 
@@ -188,7 +151,6 @@ export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
   },
   stream: true,
 
-  // New model system defaults
   modelProfiles: [],
   modelPointers: {
     main: '',
@@ -198,6 +160,35 @@ export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
   },
   lastDismissedUpdateVersion: undefined,
 }
+
+const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
+  allowedTools: [],
+  context: {},
+  history: [],
+  dontCrawlDirectory: false,
+  enableArchitectTool: false,
+  mcpContextUris: [],
+  mcpServers: {},
+  approvedMcprcServers: [],
+  rejectedMcprcServers: [],
+  hasTrustDialogAccepted: false,
+}
+
+function defaultConfigForProject(projectPath: string): ProjectConfig {
+  const config = { ...DEFAULT_PROJECT_CONFIG }
+  if (projectPath === homedir()) {
+    config.dontCrawlDirectory = true
+  }
+  return config
+}
+
+export function isAutoUpdaterStatus(value: string): value is AutoUpdaterStatus {
+  return ['disabled', 'enabled', 'no_permissions', 'not_configured'].includes(
+    value as AutoUpdaterStatus,
+  )
+}
+
+export type ModelPointerType = 'main' | 'task' | 'reasoning' | 'quick'
 
 export const GLOBAL_CONFIG_KEYS = [
   'autoUpdaterStatus',
@@ -337,27 +328,13 @@ function saveConfig<A extends object>(
   }
 }
 
-// Flag to track if config reading is allowed
 let configReadingAllowed = false
-
-export function enableConfigs(): void {
-  // Any reads to configuration before this flag is set show an console warning
-  // to prevent us from adding config reading during module initialization
-  configReadingAllowed = true
-  // We only check the global config because currently all the configs share a file
-  getConfig(
-    GLOBAL_CLAUDE_FILE,
-    DEFAULT_GLOBAL_CONFIG,
-    true /* throw on invalid */,
-  )
-}
 
 function getConfig<A>(
   file: string,
   defaultConfig: A,
   throwOnInvalid?: boolean,
 ): A {
-  // 简化配置访问逻辑，移除复杂的时序检查
 
   debugLogger.state('CONFIG_LOAD_START', {
     file,
@@ -390,7 +367,6 @@ function getConfig<A>(
         parsedKeys: Object.keys(parsedConfig).join(', '),
       })
 
-      // Handle backward compatibility - remove logic for deleted fields
       const finalConfig = {
         ...cloneDeep(defaultConfig),
         ...parsedConfig,
@@ -403,7 +379,6 @@ function getConfig<A>(
 
       return finalConfig
     } catch (error) {
-      // Throw a ConfigParseError with the file path and default config
       const errorMessage =
         error instanceof Error ? error.message : String(error)
 
@@ -418,7 +393,6 @@ function getConfig<A>(
       throw new ConfigParseError(errorMessage, file, defaultConfig)
     }
   } catch (error: unknown) {
-    // Re-throw ConfigParseError if throwOnInvalid is true
     if (error instanceof ConfigParseError && throwOnInvalid) {
       debugLogger.error('CONFIG_PARSE_ERROR_RETHROWN', {
         file,
@@ -437,6 +411,15 @@ function getConfig<A>(
 
     return cloneDeep(defaultConfig)
   }
+}
+
+export function enableConfigs(): void {
+  configReadingAllowed = true
+  getConfig(
+    GLOBAL_CLAUDE_FILE,
+    DEFAULT_GLOBAL_CONFIG,
+    true,
+  )
 }
 
 export function getCurrentProjectConfig(): ProjectConfig {
