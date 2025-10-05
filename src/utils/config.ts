@@ -174,161 +174,16 @@ const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
   hasTrustDialogAccepted: false,
 }
 
-function defaultConfigForProject(projectPath: string): ProjectConfig {
-  const config = { ...DEFAULT_PROJECT_CONFIG }
-  if (projectPath === homedir()) {
-    config.dontCrawlDirectory = true
-  }
-  return config
-}
-
-export function isAutoUpdaterStatus(value: string): value is AutoUpdaterStatus {
-  return ['disabled', 'enabled', 'no_permissions', 'not_configured'].includes(
-    value as AutoUpdaterStatus,
-  )
-}
-
-export type ModelPointerType = 'main' | 'task' | 'reasoning' | 'quick'
-
-export const GLOBAL_CONFIG_KEYS = [
-  'autoUpdaterStatus',
-  'theme',
-  'hasCompletedOnboarding',
-  'lastOnboardingVersion',
-  'lastReleaseNotesSeen',
-  'verbose',
-  'customApiKeyResponses',
-  'primaryProvider',
-  'preferredNotifChannel',
-  'shiftEnterKeyBindingInstalled',
-  'maxTokens',
-] as const
-
-export type GlobalConfigKey = (typeof GLOBAL_CONFIG_KEYS)[number]
-
-export function isGlobalConfigKey(key: string): key is GlobalConfigKey {
-  return GLOBAL_CONFIG_KEYS.includes(key as GlobalConfigKey)
-}
-
-export const PROJECT_CONFIG_KEYS = [
-  'dontCrawlDirectory',
-  'enableArchitectTool',
-  'hasTrustDialogAccepted',
-  'hasCompletedProjectOnboarding',
-] as const
-
-export type ProjectConfigKey = (typeof PROJECT_CONFIG_KEYS)[number]
-
-export function checkHasTrustDialogAccepted(): boolean {
-  let currentPath = getCwd()
-  const config = getConfig(GLOBAL_CLAUDE_FILE, DEFAULT_GLOBAL_CONFIG)
-
-  while (true) {
-    const projectConfig = config.projects?.[currentPath]
-    if (projectConfig?.hasTrustDialogAccepted) {
-      return true
-    }
-    const parentPath = resolve(currentPath, '..')
-    // Stop if we've reached the root (when parent is same as current)
-    if (parentPath === currentPath) {
-      break
-    }
-    currentPath = parentPath
-  }
-
-  return false
-}
-
-// We have to put this test code here because Jest doesn't support mocking ES modules :O
-const TEST_GLOBAL_CONFIG_FOR_TESTING: GlobalConfig = {
-  ...DEFAULT_GLOBAL_CONFIG,
-  autoUpdaterStatus: 'disabled',
-}
-const TEST_PROJECT_CONFIG_FOR_TESTING: ProjectConfig = {
-  ...DEFAULT_PROJECT_CONFIG,
-}
-
-export function isProjectConfigKey(key: string): key is ProjectConfigKey {
-  return PROJECT_CONFIG_KEYS.includes(key as ProjectConfigKey)
-}
-
-export function saveGlobalConfig(config: GlobalConfig): void {
-  if (process.env.NODE_ENV === 'test') {
-    for (const key in config) {
-      TEST_GLOBAL_CONFIG_FOR_TESTING[key] = config[key]
-    }
-    return
-  }
-
-  // 直接保存配置（无需清除缓存，因为已移除缓存）
-  saveConfig(
-    GLOBAL_CLAUDE_FILE,
-    {
-      ...config,
-      projects: getConfig(GLOBAL_CLAUDE_FILE, DEFAULT_GLOBAL_CONFIG).projects,
-    },
-    DEFAULT_GLOBAL_CONFIG,
-  )
-}
-
-// 临时移除缓存，确保总是获取最新配置
-export function getGlobalConfig(): GlobalConfig {
-  if (process.env.NODE_ENV === 'test') {
-    return TEST_GLOBAL_CONFIG_FOR_TESTING
-  }
-  const config = getConfig(GLOBAL_CLAUDE_FILE, DEFAULT_GLOBAL_CONFIG)
-  return migrateModelProfilesRemoveId(config)
-}
-
-export function getAnthropicApiKey(): null | string {
-  return process.env.ANTHROPIC_API_KEY || null
-}
-
-export function normalizeApiKeyForConfig(apiKey: string): string {
-  return apiKey?.slice(-20) ?? ''
-}
-
-export function getCustomApiKeyStatus(
-  truncatedApiKey: string,
-): 'approved' | 'rejected' | 'new' {
-  const config = getGlobalConfig()
-  if (config.customApiKeyResponses?.approved?.includes(truncatedApiKey)) {
-    return 'approved'
-  }
-  if (config.customApiKeyResponses?.rejected?.includes(truncatedApiKey)) {
-    return 'rejected'
-  }
-  return 'new'
-}
-
-function saveConfig<A extends object>(
-  file: string,
-  config: A,
-  defaultConfig: A,
-): void {
-  // Filter out any values that match the defaults
-  const filteredConfig = Object.fromEntries(
-    Object.entries(config).filter(
-      ([key, value]) =>
-        JSON.stringify(value) !== JSON.stringify(defaultConfig[key as keyof A]),
-    ),
-  )
-  try {
-    writeFileSync(file, JSON.stringify(filteredConfig, null, 2), 'utf-8')
-  } catch (error) {
-    const err = error as NodeJS.ErrnoException
-    if (err?.code === 'EACCES' || err?.code === 'EPERM' || err?.code === 'EROFS') {
-      debugLogger.state('CONFIG_SAVE_SKIPPED', {
-        file,
-        reason: String(err.code),
-      })
-      return
-    }
-    throw error
-  }
-}
-
 let configReadingAllowed = false
+
+export function enableConfigs(): void {
+  configReadingAllowed = true
+  getConfig(
+    GLOBAL_CLAUDE_FILE,
+    DEFAULT_GLOBAL_CONFIG,
+    true,
+  )
+}
 
 function getConfig<A>(
   file: string,
@@ -413,13 +268,237 @@ function getConfig<A>(
   }
 }
 
-export function enableConfigs(): void {
-  configReadingAllowed = true
-  getConfig(
-    GLOBAL_CLAUDE_FILE,
-    DEFAULT_GLOBAL_CONFIG,
-    true,
+export function validateAndRepairAllGPT5Profiles(): { repaired: number; total: number } {
+  const config = getGlobalConfig()
+  if (!config.modelProfiles) {
+    return { repaired: 0, total: 0 }
+  }
+  
+  let repairCount = 0
+  const repairedProfiles = config.modelProfiles.map(profile => {
+    const repairedProfile = validateAndRepairGPT5Profile(profile)
+    if (repairedProfile.validationStatus === 'auto_repaired') {
+      repairCount++
+    }
+    return repairedProfile
+  })
+  
+  // Save the repaired configuration
+  if (repairCount > 0) {
+    const updatedConfig = {
+      ...config,
+      modelProfiles: repairedProfiles,
+    }
+    saveGlobalConfig(updatedConfig)
+    console.log(`🔧 GPT-5 Config: Auto-repaired ${repairCount} model profiles`)
+  }
+  
+  return { repaired: repairCount, total: config.modelProfiles.length }
+}
+
+const TEST_GLOBAL_CONFIG_FOR_TESTING: GlobalConfig = {
+  ...DEFAULT_GLOBAL_CONFIG,
+  autoUpdaterStatus: 'disabled',
+}
+
+export function getGlobalConfig(): GlobalConfig {
+  if (process.env.NODE_ENV === 'test') {
+    return TEST_GLOBAL_CONFIG_FOR_TESTING
+  }
+  const config = getConfig(GLOBAL_CLAUDE_FILE, DEFAULT_GLOBAL_CONFIG)
+  return migrateModelProfilesRemoveId(config)
+}
+
+export type ModelPointerType = 'main' | 'task' | 'reasoning' | 'quick'
+
+function migrateModelProfilesRemoveId(config: GlobalConfig): GlobalConfig {
+  if (!config.modelProfiles) return config
+
+  const idToModelNameMap = new Map<string, string>()
+  const migratedProfiles = config.modelProfiles.map(profile => {
+    if ((profile as any).id && profile.modelName) {
+      idToModelNameMap.set((profile as any).id, profile.modelName)
+    }
+
+    const { id, ...profileWithoutId } = profile as any
+    return profileWithoutId as ModelProfile
+  })
+
+  const migratedPointers: ModelPointers = {
+    main: '',
+    task: '',
+    reasoning: '',
+    quick: '',
+  }
+
+  if (config.modelPointers) {
+    Object.entries(config.modelPointers).forEach(([pointer, value]) => {
+      if (value) {
+        const modelName = idToModelNameMap.get(value) || value
+        migratedPointers[pointer as ModelPointerType] = modelName
+      }
+    })
+  }
+
+  let defaultModelName: string | undefined
+  if ((config as any).defaultModelId) {
+    defaultModelName =
+      idToModelNameMap.get((config as any).defaultModelId) ||
+      (config as any).defaultModelId
+  } else if ((config as any).defaultModelName) {
+    defaultModelName = (config as any).defaultModelName
+  }
+
+  const migratedConfig = { ...config }
+  delete (migratedConfig as any).defaultModelId
+  delete (migratedConfig as any).currentSelectedModelId
+  delete (migratedConfig as any).mainAgentModelId
+  delete (migratedConfig as any).taskToolModelId
+
+  return {
+    ...migratedConfig,
+    modelProfiles: migratedProfiles,
+    modelPointers: migratedPointers,
+    defaultModelName,
+  }
+}
+
+function defaultConfigForProject(projectPath: string): ProjectConfig {
+  const config = { ...DEFAULT_PROJECT_CONFIG }
+  if (projectPath === homedir()) {
+    config.dontCrawlDirectory = true
+  }
+  return config
+}
+
+export function isAutoUpdaterStatus(value: string): value is AutoUpdaterStatus {
+  return ['disabled', 'enabled', 'no_permissions', 'not_configured'].includes(
+    value as AutoUpdaterStatus,
   )
+}
+
+export const GLOBAL_CONFIG_KEYS = [
+  'autoUpdaterStatus',
+  'theme',
+  'hasCompletedOnboarding',
+  'lastOnboardingVersion',
+  'lastReleaseNotesSeen',
+  'verbose',
+  'customApiKeyResponses',
+  'primaryProvider',
+  'preferredNotifChannel',
+  'shiftEnterKeyBindingInstalled',
+  'maxTokens',
+] as const
+
+export type GlobalConfigKey = (typeof GLOBAL_CONFIG_KEYS)[number]
+
+export function isGlobalConfigKey(key: string): key is GlobalConfigKey {
+  return GLOBAL_CONFIG_KEYS.includes(key as GlobalConfigKey)
+}
+
+export const PROJECT_CONFIG_KEYS = [
+  'dontCrawlDirectory',
+  'enableArchitectTool',
+  'hasTrustDialogAccepted',
+  'hasCompletedProjectOnboarding',
+] as const
+
+export type ProjectConfigKey = (typeof PROJECT_CONFIG_KEYS)[number]
+
+export function checkHasTrustDialogAccepted(): boolean {
+  let currentPath = getCwd()
+  const config = getConfig(GLOBAL_CLAUDE_FILE, DEFAULT_GLOBAL_CONFIG)
+
+  while (true) {
+    const projectConfig = config.projects?.[currentPath]
+    if (projectConfig?.hasTrustDialogAccepted) {
+      return true
+    }
+    const parentPath = resolve(currentPath, '..')
+    // Stop if we've reached the root (when parent is same as current)
+    if (parentPath === currentPath) {
+      break
+    }
+    currentPath = parentPath
+  }
+
+  return false
+}
+
+const TEST_PROJECT_CONFIG_FOR_TESTING: ProjectConfig = {
+  ...DEFAULT_PROJECT_CONFIG,
+}
+
+export function isProjectConfigKey(key: string): key is ProjectConfigKey {
+  return PROJECT_CONFIG_KEYS.includes(key as ProjectConfigKey)
+}
+
+export function saveGlobalConfig(config: GlobalConfig): void {
+  if (process.env.NODE_ENV === 'test') {
+    for (const key in config) {
+      TEST_GLOBAL_CONFIG_FOR_TESTING[key] = config[key]
+    }
+    return
+  }
+
+  // 直接保存配置（无需清除缓存，因为已移除缓存）
+  saveConfig(
+    GLOBAL_CLAUDE_FILE,
+    {
+      ...config,
+      projects: getConfig(GLOBAL_CLAUDE_FILE, DEFAULT_GLOBAL_CONFIG).projects,
+    },
+    DEFAULT_GLOBAL_CONFIG,
+  )
+}
+
+export function getAnthropicApiKey(): null | string {
+  return process.env.ANTHROPIC_API_KEY || null
+}
+
+export function normalizeApiKeyForConfig(apiKey: string): string {
+  return apiKey?.slice(-20) ?? ''
+}
+
+export function getCustomApiKeyStatus(
+  truncatedApiKey: string,
+): 'approved' | 'rejected' | 'new' {
+  const config = getGlobalConfig()
+  if (config.customApiKeyResponses?.approved?.includes(truncatedApiKey)) {
+    return 'approved'
+  }
+  if (config.customApiKeyResponses?.rejected?.includes(truncatedApiKey)) {
+    return 'rejected'
+  }
+  return 'new'
+}
+
+function saveConfig<A extends object>(
+  file: string,
+  config: A,
+  defaultConfig: A,
+): void {
+  // Filter out any values that match the defaults
+  const filteredConfig = Object.fromEntries(
+    Object.entries(config).filter(
+      ([key, value]) =>
+        JSON.stringify(value) !== JSON.stringify(defaultConfig[key as keyof A]),
+    ),
+  )
+  try {
+    writeFileSync(file, JSON.stringify(filteredConfig, null, 2), 'utf-8')
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException
+    if (err?.code === 'EACCES' || err?.code === 'EPERM' || err?.code === 'EROFS') {
+      debugLogger.state('CONFIG_SAVE_SKIPPED', {
+        file,
+        reason: String(err.code),
+      })
+      return
+    }
+    throw error
+  }
 }
 
 export function getCurrentProjectConfig(): ProjectConfig {
@@ -656,66 +735,6 @@ export function getOpenAIApiKey(): string | undefined {
   return process.env.OPENAI_API_KEY
 }
 
-// Configuration migration utility functions
-function migrateModelProfilesRemoveId(config: GlobalConfig): GlobalConfig {
-  if (!config.modelProfiles) return config
-
-  // 1. Remove id field from ModelProfile objects and build ID to modelName mapping
-  const idToModelNameMap = new Map<string, string>()
-  const migratedProfiles = config.modelProfiles.map(profile => {
-    // Build mapping before removing id field
-    if ((profile as any).id && profile.modelName) {
-      idToModelNameMap.set((profile as any).id, profile.modelName)
-    }
-
-    // Remove id field, keep everything else
-    const { id, ...profileWithoutId } = profile as any
-    return profileWithoutId as ModelProfile
-  })
-
-  // 2. Migrate ModelPointers from IDs to modelNames
-  const migratedPointers: ModelPointers = {
-    main: '',
-    task: '',
-    reasoning: '',
-    quick: '',
-  }
-
-  if (config.modelPointers) {
-    Object.entries(config.modelPointers).forEach(([pointer, value]) => {
-      if (value) {
-        // If value looks like an old ID (model_xxx), map it to modelName
-        const modelName = idToModelNameMap.get(value) || value
-        migratedPointers[pointer as ModelPointerType] = modelName
-      }
-    })
-  }
-
-  // 3. Migrate legacy config fields
-  let defaultModelName: string | undefined
-  if ((config as any).defaultModelId) {
-    defaultModelName =
-      idToModelNameMap.get((config as any).defaultModelId) ||
-      (config as any).defaultModelId
-  } else if ((config as any).defaultModelName) {
-    defaultModelName = (config as any).defaultModelName
-  }
-
-  // 4. Remove legacy fields and return migrated config
-  const migratedConfig = { ...config }
-  delete (migratedConfig as any).defaultModelId
-  delete (migratedConfig as any).currentSelectedModelId
-  delete (migratedConfig as any).mainAgentModelId
-  delete (migratedConfig as any).taskToolModelId
-
-  return {
-    ...migratedConfig,
-    modelProfiles: migratedProfiles,
-    modelPointers: migratedPointers,
-    defaultModelName,
-  }
-}
-
 // New model system utility functions
 
 export function setAllPointersToModel(modelName: string): void {
@@ -829,37 +848,6 @@ export function validateAndRepairGPT5Profile(profile: ModelProfile): ModelProfil
   }
   
   return repairedProfile
-}
-
-/**
- * Validate and repair all GPT-5 profiles in the global configuration
- */
-export function validateAndRepairAllGPT5Profiles(): { repaired: number; total: number } {
-  const config = getGlobalConfig()
-  if (!config.modelProfiles) {
-    return { repaired: 0, total: 0 }
-  }
-  
-  let repairCount = 0
-  const repairedProfiles = config.modelProfiles.map(profile => {
-    const repairedProfile = validateAndRepairGPT5Profile(profile)
-    if (repairedProfile.validationStatus === 'auto_repaired') {
-      repairCount++
-    }
-    return repairedProfile
-  })
-  
-  // Save the repaired configuration
-  if (repairCount > 0) {
-    const updatedConfig = {
-      ...config,
-      modelProfiles: repairedProfiles,
-    }
-    saveGlobalConfig(updatedConfig)
-    console.log(`🔧 GPT-5 Config: Auto-repaired ${repairCount} model profiles`)
-  }
-  
-  return { repaired: repairCount, total: config.modelProfiles.length }
 }
 
 /**

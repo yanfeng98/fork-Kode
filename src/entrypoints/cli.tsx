@@ -1443,7 +1443,6 @@ async function main() {
   try {
     enableConfigs()
     
-    // 🔧 Validate and auto-repair GPT-5 model profiles
     try {
       const repairResult = validateAndRepairAllGPT5Profiles()
       if (repairResult.repaired > 0) {
