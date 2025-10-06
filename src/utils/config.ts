@@ -467,6 +467,29 @@ function saveConfig<A extends object>(
   }
 }
 
+export function getCurrentProjectConfig(): ProjectConfig {
+  if (process.env.NODE_ENV === 'test') {
+    return TEST_PROJECT_CONFIG_FOR_TESTING
+  }
+
+  const absolutePath = resolve(getCwd())
+  const config = getConfig(GLOBAL_CLAUDE_FILE, DEFAULT_GLOBAL_CONFIG)
+
+  if (!config.projects) {
+    return defaultConfigForProject(absolutePath)
+  }
+
+  const projectConfig =
+    config.projects[absolutePath] ?? defaultConfigForProject(absolutePath)
+
+    
+  if (typeof projectConfig.allowedTools === 'string') {
+    projectConfig.allowedTools =
+      (safeParseJSON(projectConfig.allowedTools) as string[]) ?? []
+  }
+  return projectConfig
+}
+
 function defaultConfigForProject(projectPath: string): ProjectConfig {
   const config = { ...DEFAULT_PROJECT_CONFIG }
   if (projectPath === homedir()) {
@@ -557,31 +580,6 @@ export function getCustomApiKeyStatus(
     return 'rejected'
   }
   return 'new'
-}
-
-
-
-export function getCurrentProjectConfig(): ProjectConfig {
-  if (process.env.NODE_ENV === 'test') {
-    return TEST_PROJECT_CONFIG_FOR_TESTING
-  }
-
-  const absolutePath = resolve(getCwd())
-  const config = getConfig(GLOBAL_CLAUDE_FILE, DEFAULT_GLOBAL_CONFIG)
-
-  if (!config.projects) {
-    return defaultConfigForProject(absolutePath)
-  }
-
-  const projectConfig =
-    config.projects[absolutePath] ?? defaultConfigForProject(absolutePath)
-  // Not sure how this became a string
-  // TODO: Fix upstream
-  if (typeof projectConfig.allowedTools === 'string') {
-    projectConfig.allowedTools =
-      (safeParseJSON(projectConfig.allowedTools) as string[]) ?? []
-  }
-  return projectConfig
 }
 
 export function saveCurrentProjectConfig(projectConfig: ProjectConfig): void {

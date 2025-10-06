@@ -243,41 +243,9 @@ async function setup(cwd: string, safeMode?: boolean): Promise<void> {
   // Users can still run the doctor command manually if desired.
 }
 
-
-
-// TODO: stream?
-async function stdin() {
-  if (process.stdin.isTTY) {
-    return ''
-  }
-
-  let data = ''
-  for await (const chunk of process.stdin) data += chunk
-  return data
-}
-
 process.on('exit', () => {
   resetCursor()
   PersistentShell.getInstance().close()
-})
-
-function gracefulExit(code = 0) {
-  try { resetCursor() } catch {}
-  try { PersistentShell.getInstance().close() } catch {}
-  process.exit(code)
-}
-
-process.on('SIGINT', () => gracefulExit(0))
-process.on('SIGTERM', () => gracefulExit(0))
-// Windows CTRL+BREAK
-process.on('SIGBREAK', () => gracefulExit(0))
-process.on('unhandledRejection', err => {
-  console.error('Unhandled rejection:', err)
-  gracefulExit(1)
-})
-process.on('uncaughtException', err => {
-  console.error('Uncaught exception:', err)
-  gracefulExit(1)
 })
 
 function resetCursor() {
@@ -288,6 +256,26 @@ function resetCursor() {
       : undefined
   terminal?.write(`\u001B[?25h${cursorShow}`)
 }
+
+process.on('SIGINT', () => gracefulExit(0))
+
+function gracefulExit(code = 0) {
+  try { resetCursor() } catch {}
+  try { PersistentShell.getInstance().close() } catch {}
+  process.exit(code)
+}
+
+process.on('SIGTERM', () => gracefulExit(0))
+process.on('SIGBREAK', () => gracefulExit(0))
+
+process.on('unhandledRejection', err => {
+  console.error('Unhandled rejection:', err)
+  gracefulExit(1)
+})
+process.on('uncaughtException', err => {
+  console.error('Uncaught exception:', err)
+  gracefulExit(1)
+})
 
 main()
 
@@ -337,6 +325,16 @@ async function main() {
   await parseArgs(inputPrompt, renderContext)
 }
 
+async function stdin() {
+  if (process.stdin.isTTY) {
+    return ''
+  }
+
+  let data = ''
+  for await (const chunk of process.stdin) data += chunk
+  return data
+}
+
 async function parseArgs(
   stdinContent: string,
   renderContext: RenderOptions | undefined,
@@ -348,7 +346,6 @@ async function parseArgs(
     exitOnCtrlC: true,
   }
 
-  // Get the initial list of commands filtering based on user type
   const commands = await getCommands()
 
   // Format command list for help text (using same filter as in help.ts)

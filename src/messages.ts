@@ -4,6 +4,12 @@ import type { Message } from './query'
 let getMessages: () => Message[] = () => []
 let setMessages: React.Dispatch<React.SetStateAction<Message[]>> = () => {}
 
+export function getMessagesSetter(): React.Dispatch<
+  React.SetStateAction<Message[]>
+> {
+  return setMessages
+}
+
 export function setMessagesGetter(getter: () => Message[]) {
   getMessages = getter
 }
@@ -16,12 +22,6 @@ export function setMessagesSetter(
   setter: React.Dispatch<React.SetStateAction<Message[]>>,
 ) {
   setMessages = setter
-}
-
-export function getMessagesSetter(): React.Dispatch<
-  React.SetStateAction<Message[]>
-> {
-  return setMessages
 }
 
 // Global UI refresh mechanism for model configuration changes

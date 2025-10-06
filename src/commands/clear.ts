@@ -8,6 +8,21 @@ import { Message } from '@query'
 import { resetReminderSession } from '@services/systemReminder'
 import { resetFileFreshnessSession } from '@services/fileFreshness'
 
+const clear = {
+  type: 'local',
+  name: 'clear',
+  description: 'Clear conversation history and free up context',
+  isEnabled: true,
+  isHidden: false,
+  async call(_, context) {
+    clearConversation(context)
+    return ''
+  },
+  userFacingName() {
+    return 'clear'
+  },
+} satisfies Command
+
 export async function clearConversation(context: {
   setForkConvoWithMessagesOnTheNextRender: (
     forkConvoWithMessages: Message[],
@@ -24,20 +39,5 @@ export async function clearConversation(context: {
   resetReminderSession()
   resetFileFreshnessSession()
 }
-
-const clear = {
-  type: 'local',
-  name: 'clear',
-  description: 'Clear conversation history and free up context',
-  isEnabled: true,
-  isHidden: false,
-  async call(_, context) {
-    clearConversation(context)
-    return ''
-  },
-  userFacingName() {
-    return 'clear'
-  },
-} satisfies Command
 
 export default clear

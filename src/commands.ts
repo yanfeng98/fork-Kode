@@ -30,6 +30,62 @@ import { memoize } from 'lodash-es'
 import type { Message } from './query'
 import { isAnthropicAuthEnabled } from './utils/auth'
 
+
+
+
+
+
+
+
+
+const INTERNAL_ONLY_COMMANDS = [ctx_viz, resume, listen]
+
+
+
+export const getCommands = memoize(async (): Promise<Command[]> => {
+  const [mcpCommands, customCommands] = await Promise.all([
+    getMCPCommands(),
+    loadCustomCommands(),
+  ])
+
+  return [...mcpCommands, ...customCommands, ...COMMANDS()].filter(
+    _ => _.isEnabled,
+  )
+})
+
+export function hasCommand(commandName: string, commands: Command[]): boolean {
+  return commands.some(
+    _ => _.userFacingName() === commandName || _.aliases?.includes(commandName),
+  )
+}
+
+export function getCommand(commandName: string, commands: Command[]): Command {
+  const command = commands.find(
+    _ => _.userFacingName() === commandName || _.aliases?.includes(commandName),
+  ) as Command | undefined
+  if (!command) {
+    throw ReferenceError(
+      `Command ${commandName} not found. Available commands: ${commands
+        .map(_ => {
+          const name = _.userFacingName()
+          return _.aliases ? `${name} (aliases: ${_.aliases.join(', ')})` : name
+        })
+        .join(', ')}`,
+    )
+  }
+
+  return command
+}
+
+export type Command = {
+  description: string
+  isEnabled: boolean
+  isHidden: boolean
+  name: string
+  aliases?: string[]
+  userFacingName(): string
+} & (PromptCommand | LocalCommand | LocalJSXCommand)
+
 type PromptCommand = {
   type: 'prompt'
   progressMessage: string
@@ -67,19 +123,6 @@ type LocalJSXCommand = {
   ): Promise<React.ReactNode>
 }
 
-export type Command = {
-  description: string
-  isEnabled: boolean
-  isHidden: boolean
-  name: string
-  aliases?: string[]
-  userFacingName(): string
-} & (PromptCommand | LocalCommand | LocalJSXCommand)
-
-const INTERNAL_ONLY_COMMANDS = [ctx_viz, resume, listen]
-
-// Declared as a function so that we don't run this until getCommands is called,
-// since underlying functions read from config, which can't be read at module initialization time
 const COMMANDS = memoize((): Command[] => [
   agents,
   clear,
@@ -102,38 +145,3 @@ const COMMANDS = memoize((): Command[] => [
   ...(isAnthropicAuthEnabled() ? [logout, login()] : []),
   ...INTERNAL_ONLY_COMMANDS,
 ])
-
-export const getCommands = memoize(async (): Promise<Command[]> => {
-  const [mcpCommands, customCommands] = await Promise.all([
-    getMCPCommands(),
-    loadCustomCommands(),
-  ])
-
-  return [...mcpCommands, ...customCommands, ...COMMANDS()].filter(
-    _ => _.isEnabled,
-  )
-})
-
-export function hasCommand(commandName: string, commands: Command[]): boolean {
-  return commands.some(
-    _ => _.userFacingName() === commandName || _.aliases?.includes(commandName),
-  )
-}
-
-export function getCommand(commandName: string, commands: Command[]): Command {
-  const command = commands.find(
-    _ => _.userFacingName() === commandName || _.aliases?.includes(commandName),
-  ) as Command | undefined
-  if (!command) {
-    throw ReferenceError(
-      `Command ${commandName} not found. Available commands: ${commands
-        .map(_ => {
-          const name = _.userFacingName()
-          return _.aliases ? `${name} (aliases: ${_.aliases.join(', ')})` : name
-        })
-        .join(', ')}`,
-    )
-  }
-
-  return command
-}

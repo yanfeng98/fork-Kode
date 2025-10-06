@@ -1,6 +1,10 @@
 import { cwd } from 'process'
 import { PersistentShell } from './PersistentShell'
 
+export function getCwd(): string {
+  return PersistentShell.getInstance().pwd()
+}
+
 // DO NOT ADD MORE STATE HERE OR BORIS WILL CURSE YOU
 const STATE: {
   originalCwd: string
@@ -18,8 +22,4 @@ export function setOriginalCwd(cwd: string): void {
 
 export function getOriginalCwd(): string {
   return STATE.originalCwd
-}
-
-export function getCwd(): string {
-  return PersistentShell.getInstance().pwd()
 }
