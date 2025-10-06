@@ -243,6 +243,100 @@ async function setup(cwd: string, safeMode?: boolean): Promise<void> {
   // Users can still run the doctor command manually if desired.
 }
 
+
+
+// TODO: stream?
+async function stdin() {
+  if (process.stdin.isTTY) {
+    return ''
+  }
+
+  let data = ''
+  for await (const chunk of process.stdin) data += chunk
+  return data
+}
+
+process.on('exit', () => {
+  resetCursor()
+  PersistentShell.getInstance().close()
+})
+
+function gracefulExit(code = 0) {
+  try { resetCursor() } catch {}
+  try { PersistentShell.getInstance().close() } catch {}
+  process.exit(code)
+}
+
+process.on('SIGINT', () => gracefulExit(0))
+process.on('SIGTERM', () => gracefulExit(0))
+// Windows CTRL+BREAK
+process.on('SIGBREAK', () => gracefulExit(0))
+process.on('unhandledRejection', err => {
+  console.error('Unhandled rejection:', err)
+  gracefulExit(1)
+})
+process.on('uncaughtException', err => {
+  console.error('Uncaught exception:', err)
+  gracefulExit(1)
+})
+
+function resetCursor() {
+  const terminal = process.stderr.isTTY
+    ? process.stderr
+    : process.stdout.isTTY
+      ? process.stdout
+      : undefined
+  terminal?.write(`\u001B[?25h${cursorShow}`)
+}
+
+main()
+
+async function main() {
+  initDebugLogger()
+
+  try {
+    enableConfigs()
+    
+    try {
+      const repairResult = validateAndRepairAllGPT5Profiles()
+      if (repairResult.repaired > 0) {
+        console.log(`🔧 Auto-repaired ${repairResult.repaired} GPT-5 model configurations`)
+      }
+    } catch (repairError) {
+      console.warn('⚠️ GPT-5 configuration validation failed:', repairError)
+    }
+  } catch (error: unknown) {
+    if (error instanceof ConfigParseError) {
+      await showInvalidConfigDialog({ error })
+      return
+    }
+  }
+
+  let inputPrompt = ''
+  let renderContext: RenderOptions | undefined = {
+    exitOnCtrlC: false,
+  
+    onFlicker() {},
+  } as any
+
+  if (
+    !process.stdin.isTTY &&
+    !process.env.CI &&
+    !process.argv.includes('mcp')
+  ) {
+    inputPrompt = await stdin()
+    if (process.platform !== 'win32') {
+      try {
+        const ttyFd = openSync('/dev/tty', 'r')
+        renderContext = { ...renderContext, stdin: new ReadStream(ttyFd) }
+      } catch (err) {
+        logError(`Could not open /dev/tty: ${err}`)
+      }
+    }
+  }
+  await parseArgs(inputPrompt, renderContext)
+}
+
 async function parseArgs(
   stdinContent: string,
   renderContext: RenderOptions | undefined,
@@ -1389,101 +1483,4 @@ ${commandList}`,
 
   await program.parseAsync(process.argv)
   return program
-}
-
-// TODO: stream?
-async function stdin() {
-  if (process.stdin.isTTY) {
-    return ''
-  }
-
-  let data = ''
-  for await (const chunk of process.stdin) data += chunk
-  return data
-}
-
-process.on('exit', () => {
-  resetCursor()
-  PersistentShell.getInstance().close()
-})
-
-function gracefulExit(code = 0) {
-  try { resetCursor() } catch {}
-  try { PersistentShell.getInstance().close() } catch {}
-  process.exit(code)
-}
-
-process.on('SIGINT', () => gracefulExit(0))
-process.on('SIGTERM', () => gracefulExit(0))
-// Windows CTRL+BREAK
-process.on('SIGBREAK', () => gracefulExit(0))
-process.on('unhandledRejection', err => {
-  console.error('Unhandled rejection:', err)
-  gracefulExit(1)
-})
-process.on('uncaughtException', err => {
-  console.error('Uncaught exception:', err)
-  gracefulExit(1)
-})
-
-function resetCursor() {
-  const terminal = process.stderr.isTTY
-    ? process.stderr
-    : process.stdout.isTTY
-      ? process.stdout
-      : undefined
-  terminal?.write(`\u001B[?25h${cursorShow}`)
-}
-
-main()
-
-async function main() {
-  initDebugLogger()
-
-  try {
-    enableConfigs()
-    
-    try {
-      const repairResult = validateAndRepairAllGPT5Profiles()
-      if (repairResult.repaired > 0) {
-        console.log(`🔧 Auto-repaired ${repairResult.repaired} GPT-5 model configurations`)
-      }
-    } catch (repairError) {
-      // Don't block startup if GPT-5 validation fails
-      console.warn('⚠️ GPT-5 configuration validation failed:', repairError)
-    }
-  } catch (error: unknown) {
-    if (error instanceof ConfigParseError) {
-      // Show the invalid config dialog with the error object
-      await showInvalidConfigDialog({ error })
-      return // Exit after handling the config error
-    }
-  }
-
-  // Disabled background notifier to avoid mid-screen logs during REPL
-
-  let inputPrompt = ''
-  let renderContext: RenderOptions | undefined = {
-    exitOnCtrlC: false,
-  
-    onFlicker() {},
-  } as any
-
-  if (
-    !process.stdin.isTTY &&
-    !process.env.CI &&
-    // Input hijacking breaks MCP.
-    !process.argv.includes('mcp')
-  ) {
-    inputPrompt = await stdin()
-    if (process.platform !== 'win32') {
-      try {
-        const ttyFd = openSync('/dev/tty', 'r')
-        renderContext = { ...renderContext, stdin: new ReadStream(ttyFd) }
-      } catch (err) {
-        logError(`Could not open /dev/tty: ${err}`)
-      }
-    }
-  }
-  await parseArgs(inputPrompt, renderContext)
 }

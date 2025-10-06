@@ -283,7 +283,6 @@ export function validateAndRepairAllGPT5Profiles(): { repaired: number; total: n
     return repairedProfile
   })
   
-  // Save the repaired configuration
   if (repairCount > 0) {
     const updatedConfig = {
       ...config,
@@ -363,6 +362,111 @@ function migrateModelProfilesRemoveId(config: GlobalConfig): GlobalConfig {
   }
 }
 
+export function validateAndRepairGPT5Profile(profile: ModelProfile): ModelProfile {
+  const isGPT5 = isGPT5ModelName(profile.modelName)
+  const now = Date.now()
+  
+  const repairedProfile: ModelProfile = { ...profile }
+  let wasRepaired = false
+  
+  if (isGPT5 !== profile.isGPT5) {
+    repairedProfile.isGPT5 = isGPT5
+    wasRepaired = true
+  }
+  
+  if (isGPT5) {
+    
+    const validReasoningEfforts = ['minimal', 'low', 'medium', 'high']
+    if (!profile.reasoningEffort || !validReasoningEfforts.includes(profile.reasoningEffort)) {
+      repairedProfile.reasoningEffort = 'medium'
+      wasRepaired = true
+      console.log(`🔧 GPT-5 Config: Set reasoning effort to 'medium' for ${profile.modelName}`)
+    }
+    
+    if (profile.contextLength < 128000) {
+      repairedProfile.contextLength = 128000
+      wasRepaired = true
+      console.log(`🔧 GPT-5 Config: Updated context length to 128k for ${profile.modelName}`)
+    }
+    
+    if (profile.maxTokens < 4000) {
+      repairedProfile.maxTokens = 8192
+      wasRepaired = true
+      console.log(`🔧 GPT-5 Config: Updated max tokens to 8192 for ${profile.modelName}`)
+    }
+    
+    if (profile.provider !== 'openai' && profile.provider !== 'custom-openai' && profile.provider !== 'azure') {
+      console.warn(`⚠️  GPT-5 Config: Unexpected provider '${profile.provider}' for GPT-5 model ${profile.modelName}. Consider using 'openai' or 'custom-openai'.`)
+    }
+    
+    if (profile.modelName.includes('gpt-5') && !profile.baseURL) {
+      repairedProfile.baseURL = 'https://api.openai.com/v1'
+      wasRepaired = true
+      console.log(`🔧 GPT-5 Config: Set default base URL for ${profile.modelName}`)
+    }
+  }
+  
+  repairedProfile.validationStatus = wasRepaired ? 'auto_repaired' : 'valid'
+  repairedProfile.lastValidation = now
+  
+  if (wasRepaired) {
+    console.log(`✅ GPT-5 Config: Auto-repaired configuration for ${profile.modelName}`)
+  }
+  
+  return repairedProfile
+}
+
+export function isGPT5ModelName(modelName: string): boolean {
+  if (!modelName || typeof modelName !== 'string') return false
+  const lowerName = modelName.toLowerCase()
+  return lowerName.startsWith('gpt-5') || lowerName.includes('gpt-5')
+}
+
+export function saveGlobalConfig(config: GlobalConfig): void {
+  if (process.env.NODE_ENV === 'test') {
+    for (const key in config) {
+      TEST_GLOBAL_CONFIG_FOR_TESTING[key] = config[key]
+    }
+    return
+  }
+
+  saveConfig(
+    GLOBAL_CLAUDE_FILE,
+    {
+      ...config,
+      projects: getConfig(GLOBAL_CLAUDE_FILE, DEFAULT_GLOBAL_CONFIG).projects,
+    },
+    DEFAULT_GLOBAL_CONFIG,
+  )
+}
+
+function saveConfig<A extends object>(
+  file: string,
+  config: A,
+  defaultConfig: A,
+): void {
+  const filteredConfig = Object.fromEntries(
+    Object.entries(config).filter(
+      ([key, value]) =>
+        JSON.stringify(value) !== JSON.stringify(defaultConfig[key as keyof A]),
+    ),
+  )
+
+  try {
+    writeFileSync(file, JSON.stringify(filteredConfig, null, 2), 'utf-8')
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException
+    if (err?.code === 'EACCES' || err?.code === 'EPERM' || err?.code === 'EROFS') {
+      debugLogger.state('CONFIG_SAVE_SKIPPED', {
+        file,
+        reason: String(err.code),
+      })
+      return
+    }
+    throw error
+  }
+}
+
 function defaultConfigForProject(projectPath: string): ProjectConfig {
   const config = { ...DEFAULT_PROJECT_CONFIG }
   if (projectPath === homedir()) {
@@ -434,25 +538,6 @@ export function isProjectConfigKey(key: string): key is ProjectConfigKey {
   return PROJECT_CONFIG_KEYS.includes(key as ProjectConfigKey)
 }
 
-export function saveGlobalConfig(config: GlobalConfig): void {
-  if (process.env.NODE_ENV === 'test') {
-    for (const key in config) {
-      TEST_GLOBAL_CONFIG_FOR_TESTING[key] = config[key]
-    }
-    return
-  }
-
-  // 直接保存配置（无需清除缓存，因为已移除缓存）
-  saveConfig(
-    GLOBAL_CLAUDE_FILE,
-    {
-      ...config,
-      projects: getConfig(GLOBAL_CLAUDE_FILE, DEFAULT_GLOBAL_CONFIG).projects,
-    },
-    DEFAULT_GLOBAL_CONFIG,
-  )
-}
-
 export function getAnthropicApiKey(): null | string {
   return process.env.ANTHROPIC_API_KEY || null
 }
@@ -474,32 +559,7 @@ export function getCustomApiKeyStatus(
   return 'new'
 }
 
-function saveConfig<A extends object>(
-  file: string,
-  config: A,
-  defaultConfig: A,
-): void {
-  // Filter out any values that match the defaults
-  const filteredConfig = Object.fromEntries(
-    Object.entries(config).filter(
-      ([key, value]) =>
-        JSON.stringify(value) !== JSON.stringify(defaultConfig[key as keyof A]),
-    ),
-  )
-  try {
-    writeFileSync(file, JSON.stringify(filteredConfig, null, 2), 'utf-8')
-  } catch (error) {
-    const err = error as NodeJS.ErrnoException
-    if (err?.code === 'EACCES' || err?.code === 'EPERM' || err?.code === 'EROFS') {
-      debugLogger.state('CONFIG_SAVE_SKIPPED', {
-        file,
-        reason: String(err.code),
-      })
-      return
-    }
-    throw error
-  }
-}
+
 
 export function getCurrentProjectConfig(): ProjectConfig {
   if (process.env.NODE_ENV === 'test') {
@@ -775,80 +835,7 @@ export function setModelPointer(
 
 // 🔥 GPT-5 Configuration Validation and Auto-Repair Functions
 
-/**
- * Check if a model name represents a GPT-5 model
- */
-export function isGPT5ModelName(modelName: string): boolean {
-  if (!modelName || typeof modelName !== 'string') return false
-  const lowerName = modelName.toLowerCase()
-  return lowerName.startsWith('gpt-5') || lowerName.includes('gpt-5')
-}
 
-/**
- * Validate and auto-repair GPT-5 model configuration
- */
-export function validateAndRepairGPT5Profile(profile: ModelProfile): ModelProfile {
-  const isGPT5 = isGPT5ModelName(profile.modelName)
-  const now = Date.now()
-  
-  // Create a working copy
-  const repairedProfile: ModelProfile = { ...profile }
-  let wasRepaired = false
-  
-  // 🔧 Set GPT-5 detection flag
-  if (isGPT5 !== profile.isGPT5) {
-    repairedProfile.isGPT5 = isGPT5
-    wasRepaired = true
-  }
-  
-  if (isGPT5) {
-    // 🔧 GPT-5 Parameter Validation and Repair
-    
-    // 1. Reasoning effort validation
-    const validReasoningEfforts = ['minimal', 'low', 'medium', 'high']
-    if (!profile.reasoningEffort || !validReasoningEfforts.includes(profile.reasoningEffort)) {
-      repairedProfile.reasoningEffort = 'medium' // Default for coding tasks
-      wasRepaired = true
-      console.log(`🔧 GPT-5 Config: Set reasoning effort to 'medium' for ${profile.modelName}`)
-    }
-    
-    // 2. Context length validation (GPT-5 models typically have 128k context)
-    if (profile.contextLength < 128000) {
-      repairedProfile.contextLength = 128000
-      wasRepaired = true
-      console.log(`🔧 GPT-5 Config: Updated context length to 128k for ${profile.modelName}`)
-    }
-    
-    // 3. Output tokens validation (reasonable defaults for GPT-5)
-    if (profile.maxTokens < 4000) {
-      repairedProfile.maxTokens = 8192 // Good default for coding tasks
-      wasRepaired = true
-      console.log(`🔧 GPT-5 Config: Updated max tokens to 8192 for ${profile.modelName}`)
-    }
-    
-    // 4. Provider validation
-    if (profile.provider !== 'openai' && profile.provider !== 'custom-openai' && profile.provider !== 'azure') {
-      console.warn(`⚠️  GPT-5 Config: Unexpected provider '${profile.provider}' for GPT-5 model ${profile.modelName}. Consider using 'openai' or 'custom-openai'.`)
-    }
-    
-    // 5. Base URL validation for official models
-    if (profile.modelName.includes('gpt-5') && !profile.baseURL) {
-      repairedProfile.baseURL = 'https://api.openai.com/v1'
-      wasRepaired = true
-      console.log(`🔧 GPT-5 Config: Set default base URL for ${profile.modelName}`)
-    }
-  }
-  
-  // Update validation metadata
-  repairedProfile.validationStatus = wasRepaired ? 'auto_repaired' : 'valid'
-  repairedProfile.lastValidation = now
-  
-  if (wasRepaired) {
-    console.log(`✅ GPT-5 Config: Auto-repaired configuration for ${profile.modelName}`)
-  }
-  
-  return repairedProfile
-}
 
 /**
  * Get GPT-5 configuration recommendations for a specific model
