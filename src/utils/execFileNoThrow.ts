@@ -5,9 +5,6 @@ import { logError } from './log'
 const MS_IN_SECOND = 1000
 const SECONDS_IN_MINUTE = 60
 
-/**
- * execFile, but always resolves (never throws)
- */
 export function execFileNoThrow(
   file: string,
   args: string[],

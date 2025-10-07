@@ -135,9 +135,37 @@ export const getProjectDocs = memoize(async (): Promise<string | null> => {
   }
 })
 
+
+
+export const getContext = memoize(
+  async (): Promise<{
+    [k: string]: string
+  }> => {
+    const codeStyle = getCodeStyle()
+    const projectConfig = getCurrentProjectConfig()
+    const dontCrawl = projectConfig.dontCrawlDirectory
+    const [gitStatus, directoryStructure, claudeFiles, readme, projectDocs] =
+      await Promise.all([
+        getGitStatus(),
+        dontCrawl ? Promise.resolve('') : getDirectoryStructure(),
+        dontCrawl ? Promise.resolve('') : getClaudeFiles(),
+        getReadme(),
+        getProjectDocs(),
+      ])
+    return {
+      ...projectConfig.context,
+      ...(directoryStructure ? { directoryStructure } : {}),
+      ...(gitStatus ? { gitStatus } : {}),
+      ...(codeStyle ? { codeStyle } : {}),
+      ...(claudeFiles ? { claudeFiles } : {}),
+      ...(readme ? { readme } : {}),
+      ...(projectDocs ? { projectDocs } : {}),
+    }
+  },
+)
+
 export const getGitStatus = memoize(async (): Promise<string | null> => {
   if (process.env.NODE_ENV === 'test') {
-    // Avoid cycles in tests
     return null
   }
   if (!(await getIsGit())) {
@@ -189,7 +217,7 @@ export const getGitStatus = memoize(async (): Promise<string | null> => {
         false,
       ).then(({ stdout }) => stdout.trim()),
     ])
-    // Check if status has more than 200 lines
+
     const statusLines = status.split('\n').length
     const truncatedStatus =
       statusLines > 200
@@ -204,37 +232,6 @@ export const getGitStatus = memoize(async (): Promise<string | null> => {
   }
 })
 
-export const getContext = memoize(
-  async (): Promise<{
-    [k: string]: string
-  }> => {
-    const codeStyle = getCodeStyle()
-    const projectConfig = getCurrentProjectConfig()
-    const dontCrawl = projectConfig.dontCrawlDirectory
-    const [gitStatus, directoryStructure, claudeFiles, readme, projectDocs] =
-      await Promise.all([
-        getGitStatus(),
-        dontCrawl ? Promise.resolve('') : getDirectoryStructure(),
-        dontCrawl ? Promise.resolve('') : getClaudeFiles(),
-        getReadme(),
-        getProjectDocs(),
-      ])
-    return {
-      ...projectConfig.context,
-      ...(directoryStructure ? { directoryStructure } : {}),
-      ...(gitStatus ? { gitStatus } : {}),
-      ...(codeStyle ? { codeStyle } : {}),
-      ...(claudeFiles ? { claudeFiles } : {}),
-      ...(readme ? { readme } : {}),
-      ...(projectDocs ? { projectDocs } : {}),
-    }
-  },
-)
-
-/**
- * Approximate directory structure, to orient Claude. Claude will start with this, then use
- * tools like LS and View to get more information.
- */
 export const getDirectoryStructure = memoize(
   async function (): Promise<string> {
     let lines: string
@@ -243,7 +240,6 @@ export const getDirectoryStructure = memoize(
       setTimeout(() => {
         abortController.abort()
       }, 1_000)
-      // 🔧 Fix: Use ModelManager instead of legacy function
       const model = getModelManager().getModelName('main')
       const resultsGen = LSTool.call(
         {

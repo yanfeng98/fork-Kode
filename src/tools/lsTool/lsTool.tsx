@@ -23,28 +23,35 @@ const inputSchema = z.strictObject({
     ),
 })
 
-// TODO: Kill this tool and use bash instead
 export const LSTool = {
   name: 'LS',
+  
   async description() {
     return DESCRIPTION
   },
+  
   inputSchema,
+  
   userFacingName() {
     return 'List'
   },
+  
   async isEnabled() {
     return true
   },
+  
   isReadOnly() {
     return true
   },
+  
   isConcurrencySafe() {
-    return true // LSTool is read-only, safe for concurrent execution
+    return true
   },
+  
   needsPermissions({ path }) {
     return !hasReadPermission(path)
   },
+  
   async prompt() {
     return DESCRIPTION
   },

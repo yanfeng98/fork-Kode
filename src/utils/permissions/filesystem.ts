@@ -1,25 +1,24 @@
 import { isAbsolute, resolve, relative, sep } from 'path'
 import { getCwd, getOriginalCwd } from '@utils/state'
 
-// In-memory storage for file permissions that resets each session
-// Sets of allowed directories for read and write operations
 const readFileAllowedDirectories: Set<string> = new Set()
 const writeFileAllowedDirectories: Set<string> = new Set()
 
-/**
- * Ensures a path is absolute by resolving it relative to cwd if necessary
- * @param path The path to normalize
- * @returns Absolute path
- */
+export function hasReadPermission(directory: string): boolean {
+  const absolutePath = toAbsolutePath(directory)
+  for (const allowedPath of readFileAllowedDirectories) {
+    if (isSubpath(allowedPath, absolutePath)) return true
+  }
+  return false
+}
+
 export function toAbsolutePath(path: string): string {
   const abs = isAbsolute(path) ? resolve(path) : resolve(getCwd(), path)
   return normalizeForCompare(abs)
 }
 
 function normalizeForCompare(p: string): string {
-  // Normalize separators and resolve .. and . segments
   const norm = resolve(p)
-  // On Windows, comparisons should be case-insensitive
   return process.platform === 'win32' ? norm.toLowerCase() : norm
 }
 
@@ -43,19 +42,6 @@ export function pathInOriginalCwd(path: string): boolean {
   const absolutePath = toAbsolutePath(path)
   const base = toAbsolutePath(getOriginalCwd())
   return isSubpath(base, absolutePath)
-}
-
-/**
- * Check if read permission exists for the specified directory
- * @param directory The directory to check permission for
- * @returns true if read permission exists, false otherwise
- */
-export function hasReadPermission(directory: string): boolean {
-  const absolutePath = toAbsolutePath(directory)
-  for (const allowedPath of readFileAllowedDirectories) {
-    if (isSubpath(allowedPath, absolutePath)) return true
-  }
-  return false
 }
 
 /**
