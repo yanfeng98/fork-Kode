@@ -18,15 +18,12 @@ import { getModelManager } from './utils/model'
 import { lastX } from './utils/generators'
 import { getGitEmail } from './utils/user'
 import { PROJECT_FILE } from './constants/product'
-/**
- * Locate AGENTS.md and CLAUDE.md files for backward compatibility with
- * existing documentation workflows.
- */
+
 export async function getClaudeFiles(): Promise<string | null> {
   const abortController = new AbortController()
   const timeout = setTimeout(() => abortController.abort(), 3000)
+  
   try {
-    // Search for both AGENTS.md and CLAUDE.md files
     const [codeContextFiles, claudeFiles] = await Promise.all([
       ripGrep(
         ['--files', '--glob', join('**', '*', PROJECT_FILE)],

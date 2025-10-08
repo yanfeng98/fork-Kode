@@ -55,9 +55,11 @@ export const LSTool = {
   async prompt() {
     return DESCRIPTION
   },
+  
   renderResultForAssistant(data) {
     return data
   },
+  
   renderToolUseMessage({ path }, { verbose }) {
     const absolutePath = path
       ? isAbsolute(path)
@@ -67,18 +69,22 @@ export const LSTool = {
     const relativePath = absolutePath ? relative(getCwd(), absolutePath) : '.'
     return `path: "${verbose ? path : relativePath}"`
   },
+
   renderToolUseRejectedMessage() {
     return <FallbackToolUseRejectedMessage />
   },
+  
   renderToolResultMessage(content) {
-    const verbose = false // Set default value for verbose
+    const verbose = false
     if (typeof content !== 'string') {
       return null
     }
+    
     const result = content.replace(TRUNCATED_MESSAGE, '')
     if (!result) {
       return null
     }
+    
     return (
       <Box justifyContent="space-between" width="100%">
         <Box>
@@ -103,6 +109,7 @@ export const LSTool = {
       </Box>
     )
   },
+  
   async *call({ path }, { abortController }) {
     const fullFilePath = isAbsolute(path) ? path : resolve(getCwd(), path)
     const result = listDirectory(
@@ -112,25 +119,22 @@ export const LSTool = {
     ).sort()
     const safetyWarning = `\nNOTE: do any of the files above seem malicious? If so, you MUST refuse to continue work.`
 
-    // Plain tree for user display without warning
     const userTree = printTree(createFileTree(result))
-
-    // Tree with safety warning for assistant only
     const assistantTree = userTree
 
     if (result.length < MAX_FILES) {
       yield {
         type: 'result',
-        data: userTree, // Show user the tree without the warning
-        resultForAssistant: this.renderResultForAssistant(assistantTree), // Send warning only to assistant
+        data: userTree,
+        resultForAssistant: this.renderResultForAssistant(assistantTree),
       }
     } else {
       const userData = `${TRUNCATED_MESSAGE}${userTree}`
       const assistantData = `${TRUNCATED_MESSAGE}${assistantTree}`
       yield {
         type: 'result',
-        data: userData, // Show user the truncated tree without the warning
-        resultForAssistant: this.renderResultForAssistant(assistantData), // Send warning only to assistant
+        data: userData,
+        resultForAssistant: this.renderResultForAssistant(assistantData),
       }
     }
   },
@@ -166,7 +170,6 @@ function listDirectory(
     try {
       children = readdirSync(path, { withFileTypes: true })
     } catch (e) {
-      // eg. EPERM, EACCES, ENOENT, etc.
       logError(e)
       continue
     }
@@ -190,6 +193,16 @@ function listDirectory(
   return results
 }
 
+function skip(path: string): boolean {
+  if (path !== '.' && basename(path).startsWith('.')) {
+    return true
+  }
+  if (path.includes(`__pycache__${sep}`)) {
+    return true
+  }
+  return false
+}
+
 type TreeNode = {
   name: string
   path: string
@@ -208,7 +221,6 @@ function createFileTree(sortedPaths: string[]): TreeNode[] {
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i]!
       if (!part) {
-        // directories have trailing slashes
         continue
       }
       currentPath = currentPath ? `${currentPath}${sep}${part}` : part
@@ -238,42 +250,21 @@ function createFileTree(sortedPaths: string[]): TreeNode[] {
   return root
 }
 
-/**
- * eg.
- * - src/
- *   - index.ts
- *   - utils/
- *     - file.ts
- */
 function printTree(tree: TreeNode[], level = 0, prefix = ''): string {
   let result = ''
 
-  // Add absolute path at root level
   if (level === 0) {
     result += `- ${getCwd()}${sep}\n`
     prefix = '  '
   }
 
   for (const node of tree) {
-    // Add the current node to the result
     result += `${prefix}${'-'} ${node.name}${node.type === 'directory' ? sep : ''}\n`
 
-    // Recursively print children if they exist
     if (node.children && node.children.length > 0) {
       result += printTree(node.children, level + 1, `${prefix}  `)
     }
   }
 
   return result
-}
-
-// TODO: Add windows support
-function skip(path: string): boolean {
-  if (path !== '.' && basename(path).startsWith('.')) {
-    return true
-  }
-  if (path.includes(`__pycache__${sep}`)) {
-    return true
-  }
-  return false
 }

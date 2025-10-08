@@ -20,33 +20,6 @@ if (useBuiltinRipgrep) {
   d('Using builtin ripgrep because USE_BUILTIN_RIPGREP is set')
 }
 
-const ripgrepPath = memoize(() => {
-  const { cmd } = findActualExecutable('rg', [])
-  d(`ripgrep initially resolved as: ${cmd}`)
-
-  if (cmd !== 'rg' && !useBuiltinRipgrep) {
-    // NB: If we're able to find ripgrep in $PATH, cmd will be an absolute
-    // path rather than just returning 'rg'
-    return cmd
-  } else {
-    // Use the one we ship in-box
-    const rgRoot = path.resolve(__dirname, 'vendor', 'ripgrep')
-    if (process.platform === 'win32') {
-      // NB: Ripgrep doesn't ship an aarch64 binary for Windows, boooooo
-      return path.resolve(rgRoot, 'x64-win32', 'rg.exe')
-    }
-
-    const ret = path.resolve(
-      rgRoot,
-      `${process.arch}-${process.platform}`,
-      'rg',
-    )
-
-    d('internal ripgrep resolved as: %s', ret)
-    return ret
-  }
-})
-
 export async function ripGrep(
   args: string[],
   target: string,
@@ -84,6 +57,33 @@ export async function ripGrep(
     )
   })
 }
+
+const ripgrepPath = memoize(() => {
+  const { cmd } = findActualExecutable('rg', [])
+  d(`ripgrep initially resolved as: ${cmd}`)
+
+  if (cmd !== 'rg' && !useBuiltinRipgrep) {
+    // NB: If we're able to find ripgrep in $PATH, cmd will be an absolute
+    // path rather than just returning 'rg'
+    return cmd
+  } else {
+    // Use the one we ship in-box
+    const rgRoot = path.resolve(__dirname, 'vendor', 'ripgrep')
+    if (process.platform === 'win32') {
+      // NB: Ripgrep doesn't ship an aarch64 binary for Windows, boooooo
+      return path.resolve(rgRoot, 'x64-win32', 'rg.exe')
+    }
+
+    const ret = path.resolve(
+      rgRoot,
+      `${process.arch}-${process.platform}`,
+      'rg',
+    )
+
+    d('internal ripgrep resolved as: %s', ret)
+    return ret
+  }
+})
 
 // NB: We do something tricky here. We know that ripgrep processes common
 // ignore files for us, so we just ripgrep for any character, which matches
