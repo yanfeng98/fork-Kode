@@ -94,73 +94,6 @@ import { ConfigParseError } from '@utils/errors'
 import { grantReadPermissionForOriginalDir } from '@utils/permissions/filesystem'
 import { MACRO } from '@constants/macros'
 
-export function completeOnboarding(): void {
-  const config = getGlobalConfig()
-  saveGlobalConfig({
-    ...config,
-    hasCompletedOnboarding: true,
-    lastOnboardingVersion: MACRO.VERSION,
-  })
-}
-
-async function showSetupScreens(
-  safeMode?: boolean,
-  print?: boolean,
-): Promise<void> {
-  if (process.env.NODE_ENV === 'test') {
-    return
-  }
-
-  const config = getGlobalConfig()
-  if (
-    !config.theme ||
-    !config.hasCompletedOnboarding // always show onboarding at least once
-  ) {
-    await clearTerminal()
-    const { render } = await import('ink')
-    await new Promise<void>(resolve => {
-      render(
-        <Onboarding
-          onDone={async () => {
-            completeOnboarding()
-            await clearTerminal()
-            resolve()
-          }}
-        />,
-        {
-          exitOnCtrlC: false,
-        },
-      )
-    })
-  }
-
-  
-
-  // In non-interactive mode, only show trust dialog in safe mode
-  if (!print && safeMode) {
-    if (!checkHasTrustDialogAccepted()) {
-      await new Promise<void>(resolve => {
-        const onDone = () => {
-          // Grant read permission to the current working directory
-          grantReadPermissionForOriginalDir()
-          resolve()
-        }
-        ;(async () => {
-          const { render } = await import('ink')
-          render(<TrustDialog onDone={onDone} />, {
-            exitOnCtrlC: false,
-          })
-        })()
-      })
-    }
-
-    // After trust dialog, check for any mcprc servers that need approval
-    if (process.env.USER_TYPE === 'ant') {
-      await handleMcprcServerApprovals()
-    }
-  }
-}
-
 async function setup(cwd: string, safeMode?: boolean): Promise<void> {
   // Set both current and original working directory if --cwd was provided
   if (cwd !== process.cwd()) {
@@ -1480,4 +1413,71 @@ ${commandList}`,
 
   await program.parseAsync(process.argv)
   return program
+}
+
+async function showSetupScreens(
+  safeMode?: boolean,
+  print?: boolean,
+): Promise<void> {
+  if (process.env.NODE_ENV === 'test') {
+    return
+  }
+
+  const config = getGlobalConfig()
+  if (
+    !config.theme ||
+    !config.hasCompletedOnboarding
+  ) {
+    await clearTerminal()
+    const { render } = await import('ink')
+    await new Promise<void>(resolve => {
+      render(
+        <Onboarding
+          onDone={async () => {
+            completeOnboarding()
+            await clearTerminal()
+            resolve()
+          }}
+        />,
+        {
+          exitOnCtrlC: false,
+        },
+      )
+    })
+  }
+
+  
+
+  // In non-interactive mode, only show trust dialog in safe mode
+  if (!print && safeMode) {
+    if (!checkHasTrustDialogAccepted()) {
+      await new Promise<void>(resolve => {
+        const onDone = () => {
+          // Grant read permission to the current working directory
+          grantReadPermissionForOriginalDir()
+          resolve()
+        }
+        ;(async () => {
+          const { render } = await import('ink')
+          render(<TrustDialog onDone={onDone} />, {
+            exitOnCtrlC: false,
+          })
+        })()
+      })
+    }
+
+    // After trust dialog, check for any mcprc servers that need approval
+    if (process.env.USER_TYPE === 'ant') {
+      await handleMcprcServerApprovals()
+    }
+  }
+}
+
+export function completeOnboarding(): void {
+  const config = getGlobalConfig()
+  saveGlobalConfig({
+    ...config,
+    hasCompletedOnboarding: true,
+    lastOnboardingVersion: MACRO.VERSION,
+  })
 }

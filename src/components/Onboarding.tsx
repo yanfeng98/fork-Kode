@@ -36,6 +36,7 @@ export function Onboarding({ onDone }: Props): React.ReactNode {
     DEFAULT_GLOBAL_CONFIG.theme,
   )
   const theme = getTheme()
+  
   function goToNextStep() {
     if (currentStepIndex < steps.length - 1) {
       const nextIndex = currentStepIndex + 1
@@ -56,12 +57,10 @@ export function Onboarding({ onDone }: Props): React.ReactNode {
   }
 
   function handleProviderSelectionDone() {
-    // After model selection is done, go to the next step
     goToNextStep()
   }
 
   function handleModelSelectionDone() {
-    // After final model selection is done, complete onboarding
     onDone()
   }
 
